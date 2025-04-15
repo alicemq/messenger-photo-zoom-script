@@ -6,7 +6,7 @@
     mouse pointer (keeping the point under the cursor fixed) and allows for dragging (panning) the image around.
     A fixed control bar is available at the top of the screen offering manual zoom in, reset, and zoom out options.
   </p>
-![Animation](https://github.com/user-attachments/assets/e19cd3e8-adcd-4824-ad78-2ffeb062ec5a)
+<img src="https://github.com/user-attachments/assets/e19cd3e8-adcd-4824-ad78-2ffeb062ec5a" width="600">
 
   
   <h2>Key Features</h2>

@@ -51,7 +51,7 @@
   <h2>Installation & Usage</h2>
   <ol>
     <li>Install a userscript manager like <a href="https://www.tampermonkey.net/" target="_blank">Tampermonkey</a>.</li>
-    <li>Create a new script and paste the provided code.</li>
+    <li>Install script from <a href="https://greasyfork.org/en/scripts/532923-messenger-modal-photo-zoom-drag-under-mouse"target="_blank">GreasyFork</a></li>
     <li>Save the script, then visit <a href="https://www.messenger.com/" target="_blank">Messenger.com</a>.</li>
     <li>Open a photo in the modal view. The zoom, drag, and control bar features will become active automatically.</li>
   </ol>

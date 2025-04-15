@@ -10,7 +10,6 @@
 (function() {
     'use strict';
 
-    // Global variables to store the current image and its transformation parameters.
     let currentImage = null;
     let currentScale = 1;
     let currentTranslateX = 0;
@@ -18,25 +17,45 @@
     let isDragging = false;
     let dragStartX = 0, dragStartY = 0;
     let startTranslateX = 0, startTranslateY = 0;
+    let lastImageSrc = "";
 
-    // Container for the global control bar that appears at the top of the screen.
     let controlsContainer = null;
-    // The zoom step increment (e.g., 0.1 means a 10% change per zoom event).
-    const step = 0.1;
+    const step = 0.1;  // Zoom increment step
+
+    // Reset transform parameters and update the image.
+    function resetTransform() {
+        currentScale = 1;
+        currentTranslateX = 0;
+        currentTranslateY = 0;
+        updateTransform();
+    }
 
     // Function: updateTransform
-    // Applies a CSS transform to the current image using both translation and scaling.
+    // Applies a CSS transform (translation and scaling) to the current image.
+    // Uses !important to override Messenger’s inline styles and sets a high z-index.
     function updateTransform() {
         if (currentImage) {
-            currentImage.style.transform = `translate(${currentTranslateX}px, ${currentTranslateY}px) scale(${currentScale})`;
-            // Use the top-left corner as the origin for manual adjustment calculations.
-            currentImage.style.transformOrigin = '0 0';
+            const transformString = `translate(${currentTranslateX}px, ${currentTranslateY}px) scale(${currentScale})`;
+            currentImage.style.setProperty('transform', transformString, 'important');
+            currentImage.style.setProperty('transform-origin', '0 0', 'important');
+            currentImage.style.setProperty('z-index', '100000', 'important');
+            updateNavigationZIndex();
         }
     }
 
+    // Function: updateNavigationZIndex
+    // Sets the z-index on the parent's parent elements of the "Next photo" and "Previous photo" buttons
+    // to ensure they remain visible above the zoomed image.
+    function updateNavigationZIndex() {
+        const navButtons = document.querySelectorAll('[aria-label="Next photo"], [aria-label="Previous photo"]');
+        navButtons.forEach(btn => {
+            let container = (btn.parentElement && btn.parentElement.parentElement) ? btn.parentElement.parentElement : btn;
+            container.style.setProperty('z-index', '100001', 'important');
+        });
+    }
+
     // Function: createControls
-    // Creates a fixed global control bar at the top center of the screen with three buttons:
-    // Zoom In ("+"), Reset (magnifier icon), and Zoom Out ("-").
+    // Creates a fixed global control bar at the top center with buttons for zooming in, resetting, and zooming out.
     function createControls() {
         controlsContainer = document.createElement('div');
         controlsContainer.style.position = 'fixed';
@@ -50,7 +69,6 @@
         controlsContainer.style.padding = '5px 10px';
         controlsContainer.style.borderRadius = '5px';
 
-        // Zoom In Button: Increases zoom relative to the image center.
         const zoomInButton = document.createElement('button');
         zoomInButton.innerHTML = '+';
         zoomInButton.style.fontSize = '18px';
@@ -63,11 +81,9 @@
             e.stopPropagation();
             if (currentImage) {
                 const rect = currentImage.getBoundingClientRect();
-                // Use the center of the image as a reference.
                 const offsetX = rect.width / 2;
                 const offsetY = rect.height / 2;
                 const zoomFactor = 1 + step;
-                // Adjust translation so that the center remains fixed during zoom.
                 currentTranslateX += (1 - zoomFactor) * offsetX;
                 currentTranslateY += (1 - zoomFactor) * offsetY;
                 currentScale *= zoomFactor;
@@ -75,7 +91,6 @@
             }
         });
 
-        // Reset Button: Resets the zoom level and translation back to default values.
         const resetButton = document.createElement('button');
         resetButton.innerHTML = '🔍';
         resetButton.style.fontSize = '18px';
@@ -86,13 +101,9 @@
         resetButton.style.borderRadius = '3px';
         resetButton.addEventListener('click', function(e) {
             e.stopPropagation();
-            currentScale = 1;
-            currentTranslateX = 0;
-            currentTranslateY = 0;
-            updateTransform();
+            resetTransform();
         });
 
-        // Zoom Out Button: Decreases zoom relative to the image center.
         const zoomOutButton = document.createElement('button');
         zoomOutButton.innerHTML = '-';
         zoomOutButton.style.fontSize = '18px';
@@ -115,7 +126,6 @@
             }
         });
 
-        // Append the buttons to the control bar and add it to the document body.
         controlsContainer.appendChild(zoomInButton);
         controlsContainer.appendChild(resetButton);
         controlsContainer.appendChild(zoomOutButton);
@@ -123,7 +133,7 @@
     }
 
     // Function: removeControls
-    // Removes the global control bar from the page.
+    // Removes the global control bar from the document.
     function removeControls() {
         if (controlsContainer) {
             controlsContainer.remove();
@@ -132,53 +142,69 @@
     }
 
     // Function: isVisible
-    // Checks if an element is currently visible (has a non-zero size or visible bounding rectangle).
+    // Checks if an element is visible (has a nonzero bounding rectangle).
     function isVisible(el) {
         return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
     }
 
     // Function: isModalActive
-    // Determines if a photo modal is active by checking for visible elements with the aria-labels
-    // "Next photo" or "Previous photo". This helps ensure that zoom functionality applies only to modal photos.
+    // Determines if a photo modal is active by checking for visible "Next photo" or "Previous photo" elements.
     function isModalActive() {
         const next = document.querySelector('[aria-label="Next photo"]');
         const prev = document.querySelector('[aria-label="Previous photo"]');
         return (next && isVisible(next)) || (prev && isVisible(prev));
     }
 
+    // Function: observeImageSrcChanges
+    // Observes changes to the "src" attribute of the image. If a change is detected, resets the transform.
+    function observeImageSrcChanges(img) {
+        const attrObserver = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'src') {
+                    if (img.src !== lastImageSrc) {
+                        lastImageSrc = img.src;
+                        resetTransform();
+                    }
+                }
+            });
+        });
+        attrObserver.observe(img, { attributes: true });
+    }
+
     // Function: setCurrentImage
-    // Sets the current image (must have a blob URL) that will receive zoom and drag functionality.
-    // Resets previous transformations and registers event listeners for wheel zoom and dragging.
+    // Sets the current image (which must have a blob URL) to receive zoom and drag functionality.
+    // If the same image element is reused with a different src, resets transformation parameters.
     function setCurrentImage(img) {
         if (!img.src || !img.src.startsWith('blob:')) return;
         if (!isModalActive()) return;
-        currentImage = img;
-        // Reset scale and translation.
-        currentScale = 1;
-        currentTranslateX = 0;
-        currentTranslateY = 0;
-        updateTransform();
 
-        // Ensure that the enhanced events are added only once.
+        if (currentImage === img) {
+            if (img.src !== lastImageSrc) {
+                lastImageSrc = img.src;
+                resetTransform();
+            }
+        } else {
+            currentImage = img;
+            lastImageSrc = img.src;
+            resetTransform();
+            observeImageSrcChanges(currentImage);
+        }
+
         if (!currentImage.dataset.zoomEnhanced) {
             currentImage.dataset.zoomEnhanced = "true";
 
-            // Mouse wheel zoom: Zooms in or out based on the wheel event, keeping the point under the mouse pointer fixed.
             currentImage.addEventListener('wheel', function(e) {
                 e.preventDefault();
                 const rect = currentImage.getBoundingClientRect();
-                // Calculate the mouse position relative to the image.
                 const offsetX = e.clientX - rect.left;
                 const offsetY = e.clientY - rect.top;
                 const zoomFactor = e.deltaY < 0 ? (1 + step) : (1 - step);
-                // Adjust translation so that the point under the mouse remains fixed.
                 currentTranslateX += (1 - zoomFactor) * offsetX;
                 currentTranslateY += (1 - zoomFactor) * offsetY;
                 currentScale *= zoomFactor;
                 updateTransform();
             }, { passive: false });
 
-            // Drag functionality: Allows the user to drag the image to reposition it.
             currentImage.addEventListener('mousedown', function(e) {
                 isDragging = true;
                 dragStartX = e.clientX;
@@ -201,9 +227,19 @@
         }
     }
 
+    // Listen for clicks on navigation buttons to trigger a zoom reset.
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('[aria-label="Next photo"]') || e.target.closest('[aria-label="Previous photo"]')) {
+            setTimeout(() => {
+                if (currentImage) {
+                    resetTransform();
+                }
+            }, 100);
+        }
+    });
+
     // MutationObserver: Watches for DOM changes to detect when a modal is active and new images are added.
     const observer = new MutationObserver(function(mutations) {
-        // If no modal is active, remove controls and clear the current image.
         if (!isModalActive()) {
             removeControls();
             currentImage = null;
@@ -222,7 +258,6 @@
                 }
             });
         });
-        // When a modal is active and a current image exists but the control bar is not present, create the controls.
         if (isModalActive() && currentImage && !controlsContainer) {
             createControls();
         }
